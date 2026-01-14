@@ -254,11 +254,7 @@ TEMPLATE_HTML = '''<!DOCTYPE html>
 # DONNÉES FIXES (Témoignages et Carrousel)
 # ============================================
 
-TEMOIGNAGES_DEFAULT = [
-    {"prenom": "Nadia", "texte": "N'ayant aucune connaissance du métier de peintre, j'ai apprécié la sélection de professionnels par votre société et vais conclure un contrat en confiance.", "date": "20/10/2025", "etoiles": "★★★★★"},
-    {"prenom": "Marc", "texte": "J'ai été rappelé dans les 10 minutes pour une prise de rdv.", "date": "25/11/2025", "etoiles": "★★★★☆"},
-    {"prenom": "Pierre", "texte": "Site très intéressant et efficace. Proposition de 4 entreprises pour des devis. Je recommande !", "date": "03/04/2025", "etoiles": "★★★★★"}
-]
+TEMOIGNAGES_DEFAULT = []
 
 
 def parse_temoignages_input(temoignages_str: str) -> List[Dict]:
@@ -287,13 +283,9 @@ def parse_temoignages_input(temoignages_str: str) -> List[Dict]:
                 "etoiles": etoiles
             })
     
-    return temoignages if temoignages else TEMOIGNAGES_DEFAULT
+    return temoignages
 
-ARTICLES_CARROUSEL_DEFAULT = [
-    {"url": "https://www.ootravaux.fr/construction-renovation/maconnerie-fondations/facade/renovation-facade-economie-energie.html", "titre": "Rénover sa façade : quelles économies d'énergie ?", "date": "05 mai 2021", "categorie": "Economie d'énergie", "image": "https://www.ootravaux.fr/sites/ootravaux/storage/files/styles/desktop_article_heading/public/2021-05/ootravaux-renovation-facade_1000x667.jpg"},
-    {"url": "https://www.ootravaux.fr/construction-renovation/maconnerie-fondations/facade/meilleure-peinture-facade.html", "titre": "Quelles peintures pour façade choisir ?", "date": "13 avril 2023", "categorie": "Peinture façade", "image": "https://www.ootravaux.fr/sites/ootravaux/storage/files/styles/desktop_article_heading/public/2023-04/meilleure-peinture-fa%C3%A7ade-ootravaux.jpg"},
-    {"url": "https://www.ootravaux.fr/construction-renovation/maconnerie-fondations/facade/prix-facade-chaux.html", "titre": "Prix d'une façade à la chaux : conseils et astuces", "date": "23 juin 2022", "categorie": "Travaux façade", "image": "https://www.ootravaux.fr/sites/ootravaux/storage/files/styles/desktop_article_heading/public/2022-06/ootravaux-fa%C3%A7ade-chaux-prix_0.png"}
-]
+ARTICLES_CARROUSEL_DEFAULT = []
 
 
 def parse_carrousel_input(carrousel_str: str) -> List[Dict]:
@@ -321,10 +313,10 @@ def parse_carrousel_input(carrousel_str: str) -> List[Dict]:
                 "titre": parts[1].strip(),
                 "date": parts[2].strip(),
                 "categorie": parts[3].strip(),
-                "image": "https://www.ootravaux.fr/sites/ootravaux/storage/files/2025-09/facade-paris.jpg"
+                "image": ""
             })
     
-    return articles if articles else ARTICLES_CARROUSEL_DEFAULT
+    return articles
 
 
 # ============================================
@@ -718,7 +710,7 @@ with col_right:
     st.markdown('<div class="card">', unsafe_allow_html=True)
     st.markdown('<div class="card-title">🔧 Options</div>', unsafe_allow_html=True)
     
-    url_cta = st.text_input("URL CTA devis", value="https://www.ootravaux.fr/trouverunartisan-ravalement-facades")
+    url_cta = st.text_input("URL CTA devis", placeholder="https://www.ootravaux.fr/trouverunartisan-...")
     url_image = st.text_input("URL image principale (optionnel)", placeholder="https://...")
     num_sources = st.slider("Sources à analyser", min_value=3, max_value=10, value=5)
     blocklist = st.text_input("Sites à exclure (optionnel)", placeholder="concurrent1.fr, concurrent2.com")
@@ -732,7 +724,7 @@ with col_right:
         "Articles du carrousel",
         placeholder="Format : URL|titre|date|catégorie|url_image\nSépare chaque article par ;\n\nExemple :\nhttps://site.fr/article1|Mon titre|15 janvier 2025|Catégorie|https://site.fr/image1.jpg;https://site.fr/article2|Autre titre|3 décembre 2024|Catégorie 2|https://site.fr/image2.jpg",
         height=120,
-        help="Laisse vide pour utiliser les articles par défaut (façade)"
+        help="3 articles recommandés pour le carrousel"
     )
     
     st.markdown('</div>', unsafe_allow_html=True)
@@ -744,7 +736,7 @@ with col_right:
         "Témoignages clients",
         placeholder="Format : Prénom|texte|date|étoiles (4 ou 5)\nSépare chaque témoignage par ;\n\nExemple :\nNadia|Très satisfaite du service !|20/10/2025|5;Marc|Rappelé en 10 min|25/11/2025|4",
         height=100,
-        help="Laisse vide pour utiliser les témoignages par défaut"
+        help="3 témoignages recommandés"
     )
     
     st.markdown('</div>', unsafe_allow_html=True)
@@ -763,6 +755,8 @@ if generate_button:
         st.warning("💡 Entre un mot-clé principal")
     elif not ytg_keywords.strip():
         st.warning("💡 Ajoute des mots-clés YTG")
+    elif not url_cta.strip():
+        st.warning("💡 Ajoute l'URL du CTA devis")
     else:
         client = anthropic.Anthropic(api_key=st.session_state['anthropic_key'])
         progress = st.container()
