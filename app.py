@@ -465,7 +465,8 @@ def agent1_generate_content(
     sources: List[Dict],
     contents: List[str],
     paa_questions: List[str],
-    blocklist: str = ""
+    blocklist: str = "",
+    mots_interdits: str = ""
 ) -> dict:
     """Agent 1 : Génère le contenu SEO structuré"""
     
@@ -475,7 +476,27 @@ def agent1_generate_content(
     
     paa_str = "\n".join([f"- {q}" for q in paa_questions]) if paa_questions else "Aucune"
     
+    # Construire la liste des mots interdits
+    mots_interdits_list = ""
+    if mots_interdits.strip():
+        mots_interdits_list = "\n".join([f"❌ \"{mot.strip()}\"" for mot in mots_interdits.strip().split("\n") if mot.strip()])
+    
     system_prompt = f"""Tu es un rédacteur SEO expert pour Ootravaux, plateforme de mise en relation avec des artisans (21 000 pros, service gratuit, jusqu'à 4 devis).
+
+## ⛔⛔⛔ MOTS ET EXPRESSIONS STRICTEMENT INTERDITS ⛔⛔⛔
+## CONTRAINTE LÉGALE ABSOLUE - NE JAMAIS UTILISER CES TERMES ##
+
+{mots_interdits_list if mots_interdits_list else "Aucun mot interdit spécifié"}
+
+ÉGALEMENT INTERDITS PAR DÉFAUT :
+❌ "artisan de confiance", "artisans qualifiés", "meilleurs artisans"
+❌ "devis gratuits" → utiliser "devis gratuit" ou "devis sans engagement"
+❌ "obtenez des devis" → utiliser "demandez" ou "recevez"
+❌ Toute mention de sélection/vérification/certification par Ootravaux
+❌ "nos conseillers", "appel conseiller"
+❌ "Il est important de noter", "Dans cet article", "N'hésitez pas"
+
+⚠️ VÉRIFICATION OBLIGATOIRE : Avant de générer, vérifie qu'AUCUN de ces termes n'apparaît dans ta réponse.
 
 ## PERSONA / TON
 {persona}
@@ -490,14 +511,6 @@ RÈGLE CRITIQUE : Intègre TOUS ces mots-clés, chacun plusieurs fois (autant qu
 
 ## BLOCKLIST
 {blocklist if blocklist else "Aucun"}
-
-## MOTS INTERDITS (NE JAMAIS UTILISER)
-- "artisan de confiance", "artisans qualifiés", "meilleurs artisans"
-- "devis gratuits" → utiliser "devis gratuit" ou "devis sans engagement"
-- "obtenez des devis" → utiliser "demandez" ou "recevez"
-- Toute mention de sélection/vérification/certification par Ootravaux
-- "nos conseillers", "appel conseiller"
-- "Il est important de noter", "Dans cet article", "N'hésitez pas"
 
 ## STRUCTURE DE SORTIE OBLIGATOIRE (JSON)
 
@@ -524,7 +537,8 @@ Tu dois retourner un JSON valide avec cette structure exacte :
 - Listes : <ul><li>...</li></ul>
 - Pas de balises <h1> dans le contenu (juste H2 et H3)
 
-IMPORTANT : Retourne UNIQUEMENT le JSON, sans texte avant ni après."""
+IMPORTANT : Retourne UNIQUEMENT le JSON, sans texte avant ni après.
+RAPPEL FINAL : Vérifie qu'AUCUN mot interdit n'apparaît dans ton contenu."""
 
     user_prompt = f"""Analyse ces {len(sources)} sources sur "{keyword}" et génère le contenu SEO structuré.
 
@@ -691,6 +705,13 @@ with col_left:
         height=100
     )
     
+    mots_interdits = st.text_area(
+        "⛔ Mots et expressions INTERDITS",
+        placeholder="Un mot ou expression par ligne\n\nExemple :\nartisans qualifiés\nartisan de confiance\nmeilleurs artisans\ndevis gratuits",
+        height=120,
+        help="IMPORTANT : Ces termes ne doivent JAMAIS apparaître dans le contenu généré (contraintes légales)"
+    )
+    
     st.markdown('</div>', unsafe_allow_html=True)
 
 with col_right:
@@ -770,7 +791,7 @@ if generate_button:
         with progress:
             st.markdown('<div class="step-indicator"><div class="step-dot"></div><span class="step-text">✍️ Agent 1 : Génération contenu SEO (Opus 4.5, temp=0.7)...</span></div>', unsafe_allow_html=True)
             try:
-                content = agent1_generate_content(client, keyword, ytg_keywords, persona, sources, contents, paa, blocklist)
+                content = agent1_generate_content(client, keyword, ytg_keywords, persona, sources, contents, paa, blocklist, mots_interdits)
             except Exception as e:
                 st.error(f"Erreur Agent 1 : {e}")
                 st.stop()
