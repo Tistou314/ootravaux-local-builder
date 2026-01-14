@@ -254,17 +254,77 @@ TEMPLATE_HTML = '''<!DOCTYPE html>
 # DONNÉES FIXES (Témoignages et Carrousel)
 # ============================================
 
-TEMOIGNAGES = [
+TEMOIGNAGES_DEFAULT = [
     {"prenom": "Nadia", "texte": "N'ayant aucune connaissance du métier de peintre, j'ai apprécié la sélection de professionnels par votre société et vais conclure un contrat en confiance.", "date": "20/10/2025", "etoiles": "★★★★★"},
     {"prenom": "Marc", "texte": "J'ai été rappelé dans les 10 minutes pour une prise de rdv.", "date": "25/11/2025", "etoiles": "★★★★☆"},
     {"prenom": "Pierre", "texte": "Site très intéressant et efficace. Proposition de 4 entreprises pour des devis. Je recommande !", "date": "03/04/2025", "etoiles": "★★★★★"}
 ]
 
-ARTICLES_CARROUSEL = [
+
+def parse_temoignages_input(temoignages_str: str) -> List[Dict]:
+    """Parse les témoignages au format Prénom|texte|date|étoiles;..."""
+    if not temoignages_str.strip():
+        return TEMOIGNAGES_DEFAULT
+    
+    temoignages = []
+    entries = temoignages_str.strip().split(";")
+    
+    for entry in entries:
+        parts = entry.strip().split("|")
+        if len(parts) >= 4:
+            etoiles_num = parts[3].strip()
+            if etoiles_num == "5":
+                etoiles = "★★★★★"
+            elif etoiles_num == "4":
+                etoiles = "★★★★☆"
+            else:
+                etoiles = "★★★★★"
+            
+            temoignages.append({
+                "prenom": parts[0].strip(),
+                "texte": parts[1].strip(),
+                "date": parts[2].strip(),
+                "etoiles": etoiles
+            })
+    
+    return temoignages if temoignages else TEMOIGNAGES_DEFAULT
+
+ARTICLES_CARROUSEL_DEFAULT = [
     {"url": "https://www.ootravaux.fr/construction-renovation/maconnerie-fondations/facade/renovation-facade-economie-energie.html", "titre": "Rénover sa façade : quelles économies d'énergie ?", "date": "05 mai 2021", "categorie": "Economie d'énergie", "image": "https://www.ootravaux.fr/sites/ootravaux/storage/files/styles/desktop_article_heading/public/2021-05/ootravaux-renovation-facade_1000x667.jpg"},
     {"url": "https://www.ootravaux.fr/construction-renovation/maconnerie-fondations/facade/meilleure-peinture-facade.html", "titre": "Quelles peintures pour façade choisir ?", "date": "13 avril 2023", "categorie": "Peinture façade", "image": "https://www.ootravaux.fr/sites/ootravaux/storage/files/styles/desktop_article_heading/public/2023-04/meilleure-peinture-fa%C3%A7ade-ootravaux.jpg"},
     {"url": "https://www.ootravaux.fr/construction-renovation/maconnerie-fondations/facade/prix-facade-chaux.html", "titre": "Prix d'une façade à la chaux : conseils et astuces", "date": "23 juin 2022", "categorie": "Travaux façade", "image": "https://www.ootravaux.fr/sites/ootravaux/storage/files/styles/desktop_article_heading/public/2022-06/ootravaux-fa%C3%A7ade-chaux-prix_0.png"}
 ]
+
+
+def parse_carrousel_input(carrousel_str: str) -> List[Dict]:
+    """Parse le carrousel au format URL|titre|date|categorie|url_image;..."""
+    if not carrousel_str.strip():
+        return ARTICLES_CARROUSEL_DEFAULT
+    
+    articles = []
+    entries = carrousel_str.strip().split(";")
+    
+    for entry in entries:
+        parts = entry.strip().split("|")
+        if len(parts) >= 5:
+            articles.append({
+                "url": parts[0].strip(),
+                "titre": parts[1].strip(),
+                "date": parts[2].strip(),
+                "categorie": parts[3].strip(),
+                "image": parts[4].strip()
+            })
+        elif len(parts) == 4:
+            # Fallback sans image
+            articles.append({
+                "url": parts[0].strip(),
+                "titre": parts[1].strip(),
+                "date": parts[2].strip(),
+                "categorie": parts[3].strip(),
+                "image": "https://www.ootravaux.fr/sites/ootravaux/storage/files/2025-09/facade-paris.jpg"
+            })
+    
+    return articles if articles else ARTICLES_CARROUSEL_DEFAULT
 
 
 # ============================================
@@ -330,10 +390,10 @@ def fetch_content_jina(url: str) -> str:
         return f"Erreur: {str(e)}"
 
 
-def generate_temoignages_html() -> str:
+def generate_temoignages_html(temoignages: List[Dict]) -> str:
     """Génère le HTML des témoignages"""
     html = ""
-    for t in TEMOIGNAGES:
+    for t in temoignages:
         html += f'''
                                 <div class="avis-card">
                                     <div class="stars">{t['etoiles']}</div>
@@ -347,10 +407,10 @@ def generate_temoignages_html() -> str:
     return html
 
 
-def generate_carrousel_html() -> str:
+def generate_carrousel_html(articles: List[Dict]) -> str:
     """Génère le HTML du carrousel d'articles"""
     html = ""
-    for a in ARTICLES_CARROUSEL:
+    for a in articles:
         html += f'''
                                     <div class="articles-vignette">
                                         <div class="articles-vignette-img-wrap">
@@ -512,13 +572,15 @@ def agent2_assemble_page(
     content: dict,
     keyword: str,
     url_cta: str,
-    url_image: str
+    url_image: str,
+    carrousel_articles: List[Dict],
+    temoignages_list: List[Dict]
 ) -> str:
     """Agent 2 : Assemble le contenu dans le template"""
     
     # Générer les éléments fixes
-    temoignages_html = generate_temoignages_html()
-    carrousel_html = generate_carrousel_html()
+    temoignages_html = generate_temoignages_html(temoignages_list)
+    carrousel_html = generate_carrousel_html(carrousel_articles)
     breadcrumb_data = detect_breadcrumb_category(keyword)
     
     # Construire le breadcrumb HTML
@@ -641,6 +703,30 @@ with col_right:
     blocklist = st.text_input("Sites à exclure (optionnel)", placeholder="concurrent1.fr, concurrent2.com")
     
     st.markdown('</div>', unsafe_allow_html=True)
+    
+    st.markdown('<div class="card">', unsafe_allow_html=True)
+    st.markdown('<div class="card-title">📚 Carrousel articles liés</div>', unsafe_allow_html=True)
+    
+    carrousel_input = st.text_area(
+        "Articles du carrousel",
+        placeholder="Format : URL|titre|date|catégorie|url_image\nSépare chaque article par ;\n\nExemple :\nhttps://site.fr/article1|Mon titre|15 janvier 2025|Catégorie|https://site.fr/image1.jpg;https://site.fr/article2|Autre titre|3 décembre 2024|Catégorie 2|https://site.fr/image2.jpg",
+        height=120,
+        help="Laisse vide pour utiliser les articles par défaut (façade)"
+    )
+    
+    st.markdown('</div>', unsafe_allow_html=True)
+    
+    st.markdown('<div class="card">', unsafe_allow_html=True)
+    st.markdown('<div class="card-title">💬 Témoignages</div>', unsafe_allow_html=True)
+    
+    temoignages_input = st.text_area(
+        "Témoignages clients",
+        placeholder="Format : Prénom|texte|date|étoiles (4 ou 5)\nSépare chaque témoignage par ;\n\nExemple :\nNadia|Très satisfaite du service !|20/10/2025|5;Marc|Rappelé en 10 min|25/11/2025|4",
+        height=100,
+        help="Laisse vide pour utiliser les témoignages par défaut"
+    )
+    
+    st.markdown('</div>', unsafe_allow_html=True)
 
 # Bouton génération
 generate_button = st.button("🚀 Générer la page complète", use_container_width=True)
@@ -694,7 +780,9 @@ if generate_button:
         with progress:
             st.markdown('<div class="step-indicator"><div class="step-dot"></div><span class="step-text">🎨 Agent 2 : Assemblage template (Opus 4.5, temp=0.2)...</span></div>', unsafe_allow_html=True)
             try:
-                final_html = agent2_assemble_page(client, content, keyword, url_cta, url_image)
+                carrousel_articles = parse_carrousel_input(carrousel_input)
+                temoignages_list = parse_temoignages_input(temoignages_input)
+                final_html = agent2_assemble_page(client, content, keyword, url_cta, url_image, carrousel_articles, temoignages_list)
             except Exception as e:
                 st.error(f"Erreur Agent 2 : {e}")
                 st.stop()
