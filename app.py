@@ -378,23 +378,28 @@ def parse_carrousel_input(carrousel_str: str) -> List[Dict]:
                 date_match = re.search(r'(\d{1,2}\s+\w+\s+\d{4})', entry)
                 date = date_match.group(1) if date_match else ""
 
-                # Extraire le titre (texte avant la virgule qui précède l'URL)
-                # ou le texte au début de la ligne après la date
-                titre = ""
-                lines = entry.split("\n")
-                for line in lines:
-                    if "http" in line:
-                        # Le titre est souvent avant la première virgule
-                        parts = line.split(",")
-                        if parts:
-                            titre = parts[0].strip()
-                            break
+                # Extraire le titre depuis le slug de l'URL (fin avant .html)
+                # Ex: prix-entretien-jardin-annuel.html → Prix entretien jardin annuel
+                slug_match = re.search(r'/([^/]+)\.html$', url)
+                if slug_match:
+                    slug = slug_match.group(1)
+                    # Convertir le slug en titre lisible
+                    titre = slug.replace('-', ' ').replace('_', ' ').title()
+                else:
+                    titre = ""
+
+                # Extraire la catégorie depuis le premier segment après ootravaux.fr/
+                # Ex: https://www.ootravaux.fr/amenagement-exterieur/... → Aménagement extérieur
+                cat_match = re.search(r'ootravaux\.fr/([^/]+)', url)
+                if cat_match:
+                    cat_slug = cat_match.group(1)
+                    # Convertir en format lisible
+                    categorie = cat_slug.replace('-', ' ').replace('_', ' ').title()
+                else:
+                    categorie = ""
 
                 # Extraire l'image
                 image = image_match.group(1) if image_match else ""
-
-                # Catégorie = titre simplifié ou vide
-                categorie = titre.split()[0] if titre else ""
 
                 if url and titre:
                     articles.append({
