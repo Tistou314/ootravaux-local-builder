@@ -420,6 +420,208 @@ def generate_carrousel_html(articles: List[Dict]) -> str:
     return html
 
 
+def analyze_ytg_in_content(content: str, ytg_keywords: List[str]) -> Dict:
+    """Analyse la présence et fréquence des mots-clés YTG dans un contenu"""
+    content_lower = content.lower()
+    results = {}
+
+    for kw in ytg_keywords:
+        kw_clean = kw.strip().lower()
+        if not kw_clean:
+            continue
+
+        # Compter les occurrences
+        count = content_lower.count(kw_clean)
+
+        # Détecter la présence dans les titres (H1, H2, H3)
+        in_title = False
+        title_patterns = [
+            r'<h[123][^>]*>[^<]*' + re.escape(kw_clean) + r'[^<]*</h[123]>',
+            r'^#+\s*.*' + re.escape(kw_clean),  # Markdown
+        ]
+        for pattern in title_patterns:
+            if re.search(pattern, content_lower, re.MULTILINE | re.IGNORECASE):
+                in_title = True
+                break
+
+        # Détecter présence dans le premier quart (intro)
+        first_quarter = content_lower[:len(content_lower)//4]
+        in_intro = kw_clean in first_quarter
+
+        results[kw_clean] = {
+            "count": count,
+            "in_title": in_title,
+            "in_intro": in_intro
+        }
+
+    return results
+
+
+def analyze_competitors_ytg(sources: List[Dict], contents: List[str], ytg_keywords_str: str) -> Dict:
+    """
+    Analyse complète de l'utilisation des mots-clés YTG par les concurrents.
+    Retourne un rapport détaillé avec statistiques et recommandations.
+    """
+    # Parser les mots-clés YTG
+    ytg_list = [kw.strip() for kw in ytg_keywords_str.strip().split('\n') if kw.strip()]
+
+    if not ytg_list:
+        return {"keywords": [], "sources_analysis": [], "summary": {}}
+
+    # Analyser chaque source
+    sources_analysis = []
+    for i, (source, content) in enumerate(zip(sources, contents)):
+        if "Erreur" in content:
+            continue
+
+        analysis = analyze_ytg_in_content(content, ytg_list)
+        sources_analysis.append({
+            "source_index": i + 1,
+            "title": source.get("title", f"Source {i+1}"),
+            "url": source.get("url", ""),
+            "keywords": analysis
+        })
+
+    # Calculer les statistiques agrégées
+    keyword_stats = {}
+    for kw in ytg_list:
+        kw_lower = kw.lower().strip()
+        counts = []
+        in_title_count = 0
+        in_intro_count = 0
+
+        for sa in sources_analysis:
+            if kw_lower in sa["keywords"]:
+                kw_data = sa["keywords"][kw_lower]
+                counts.append(kw_data["count"])
+                if kw_data["in_title"]:
+                    in_title_count += 1
+                if kw_data["in_intro"]:
+                    in_intro_count += 1
+
+        if counts:
+            avg = sum(counts) / len(counts)
+            min_count = min(counts)
+            max_count = max(counts)
+
+            # Calculer la cible recommandée (légèrement au-dessus de la moyenne)
+            target_min = max(1, int(avg))
+            target_max = max(target_min + 1, int(avg * 1.2))
+
+            keyword_stats[kw] = {
+                "average": round(avg, 1),
+                "min": min_count,
+                "max": max_count,
+                "target_min": target_min,
+                "target_max": target_max,
+                "in_title_ratio": f"{in_title_count}/{len(sources_analysis)}",
+                "in_intro_ratio": f"{in_intro_count}/{len(sources_analysis)}",
+                "priority": "haute" if avg >= 3 else ("moyenne" if avg >= 1 else "basse")
+            }
+        else:
+            keyword_stats[kw] = {
+                "average": 0,
+                "min": 0,
+                "max": 0,
+                "target_min": 2,
+                "target_max": 4,
+                "in_title_ratio": "0/0",
+                "in_intro_ratio": "0/0",
+                "priority": "moyenne"
+            }
+
+    return {
+        "keywords": ytg_list,
+        "sources_analysis": sources_analysis,
+        "summary": keyword_stats
+    }
+
+
+def format_ytg_report_for_prompt(ytg_analysis: Dict) -> str:
+    """Formate le rapport d'analyse YTG pour l'inclure dans le prompt de l'Agent 1"""
+    if not ytg_analysis.get("summary"):
+        return "Aucune analyse disponible."
+
+    report = "## 📊 ANALYSE SÉMANTIQUE DES CONCURRENTS (DONNÉES RÉELLES)\n\n"
+    report += "| Mot-clé YTG | Moy. | Min | Max | Cible | En titre | En intro | Priorité |\n"
+    report += "|-------------|------|-----|-----|-------|----------|----------|----------|\n"
+
+    # Trier par priorité et moyenne
+    sorted_keywords = sorted(
+        ytg_analysis["summary"].items(),
+        key=lambda x: (-x[1]["average"], x[0])
+    )
+
+    for kw, stats in sorted_keywords:
+        target = f"{stats['target_min']}-{stats['target_max']}"
+        priority_emoji = "🔴" if stats["priority"] == "haute" else ("🟡" if stats["priority"] == "moyenne" else "🟢")
+        report += f"| {kw} | {stats['average']} | {stats['min']} | {stats['max']} | {target} | {stats['in_title_ratio']} | {stats['in_intro_ratio']} | {priority_emoji} {stats['priority']} |\n"
+
+    report += "\n### INSTRUCTIONS D'OPTIMISATION BASÉES SUR L'ANALYSE\n\n"
+
+    # Identifier les mots-clés prioritaires
+    high_priority = [kw for kw, s in sorted_keywords if s["priority"] == "haute"]
+    if high_priority:
+        report += f"**Mots-clés PRIORITAIRES (utilisés fréquemment par les concurrents) :**\n"
+        for kw in high_priority[:5]:
+            stats = ytg_analysis["summary"][kw]
+            report += f"- \"{kw}\" → Vise {stats['target_min']}-{stats['target_max']} occurrences\n"
+        report += "\n"
+
+    # Mots-clés à placer en titres
+    title_keywords = [kw for kw, s in sorted_keywords if "/" in s["in_title_ratio"] and int(s["in_title_ratio"].split("/")[0]) >= int(s["in_title_ratio"].split("/")[1]) / 2]
+    if title_keywords:
+        report += f"**À PLACER EN TITRES H2/H3 (les concurrents le font) :**\n"
+        for kw in title_keywords[:4]:
+            report += f"- \"{kw}\"\n"
+        report += "\n"
+
+    # Mots-clés pour l'intro
+    intro_keywords = [kw for kw, s in sorted_keywords if "/" in s["in_intro_ratio"] and int(s["in_intro_ratio"].split("/")[0]) >= int(s["in_intro_ratio"].split("/")[1]) / 2]
+    if intro_keywords:
+        report += f"**À PLACER EN INTRO (début de page) :**\n"
+        for kw in intro_keywords[:3]:
+            report += f"- \"{kw}\"\n"
+
+    return report
+
+
+def format_ytg_report_for_display(ytg_analysis: Dict) -> str:
+    """Formate le rapport d'analyse YTG pour l'affichage Streamlit (Markdown)"""
+    if not ytg_analysis.get("summary"):
+        return "Aucune donnée d'analyse disponible."
+
+    report = "### 📊 Rapport d'analyse sémantique\n\n"
+    report += "| Mot-clé | Moy. concurrents | Min | Max | Cible recommandée | Priorité |\n"
+    report += "|---------|------------------|-----|-----|-------------------|----------|\n"
+
+    sorted_keywords = sorted(
+        ytg_analysis["summary"].items(),
+        key=lambda x: (-x[1]["average"], x[0])
+    )
+
+    for kw, stats in sorted_keywords:
+        target = f"{stats['target_min']}-{stats['target_max']}"
+        priority_emoji = "🔴" if stats["priority"] == "haute" else ("🟡" if stats["priority"] == "moyenne" else "⚪")
+        report += f"| {kw} | {stats['average']} | {stats['min']} | {stats['max']} | {target} | {priority_emoji} {stats['priority'].capitalize()} |\n"
+
+    report += "\n---\n\n"
+    report += "**Légende :** 🔴 Haute (moy. ≥3) | 🟡 Moyenne (moy. ≥1) | ⚪ Basse\n\n"
+
+    # Détail par source
+    report += "### Détail par concurrent\n\n"
+    for sa in ytg_analysis.get("sources_analysis", []):
+        report += f"**{sa['source_index']}. {sa['title'][:50]}...**\n"
+        top_kw = sorted(sa["keywords"].items(), key=lambda x: -x[1]["count"])[:5]
+        if top_kw:
+            kw_list = [f"{kw} ({data['count']}x)" for kw, data in top_kw if data["count"] > 0]
+            if kw_list:
+                report += f"  - Top mots-clés : {', '.join(kw_list)}\n"
+        report += "\n"
+
+    return report
+
+
 def detect_breadcrumb_category(keyword: str) -> dict:
     """Détecte la catégorie pour le breadcrumb basé sur le mot-clé"""
     keyword_lower = keyword.lower()
@@ -458,21 +660,22 @@ def agent1_generate_content(
     contents: List[str],
     paa_questions: List[str],
     blocklist: str = "",
-    mots_interdits: str = ""
+    mots_interdits: str = "",
+    ytg_analysis_report: str = ""
 ) -> dict:
-    """Agent 1 : Génère le contenu SEO structuré"""
-    
+    """Agent 1 : Génère le contenu SEO structuré avec analyse sémantique des concurrents"""
+
     sources_context = ""
     for i, (source, content) in enumerate(zip(sources, contents), 1):
         sources_context += f"\n--- SOURCE {i} ---\nTitre: {source['title']}\nURL: {source['url']}\nContenu:\n{content[:6000]}\n"
-    
+
     paa_str = "\n".join([f"- {q}" for q in paa_questions]) if paa_questions else "Aucune"
-    
+
     # Construire la liste des mots interdits
     mots_interdits_list = ""
     if mots_interdits.strip():
         mots_interdits_list = "\n".join([f"❌ \"{mot.strip()}\"" for mot in mots_interdits.strip().split("\n") if mot.strip()])
-    
+
     system_prompt = f"""Tu es un rédacteur SEO expert pour Ootravaux, plateforme de mise en relation avec des artisans (21 000 pros, service gratuit, jusqu'à 4 devis).
 
 ## ⛔⛔⛔ MOTS ET EXPRESSIONS STRICTEMENT INTERDITS ⛔⛔⛔
@@ -493,10 +696,21 @@ def agent1_generate_content(
 ## PERSONA / TON
 {persona}
 
-## MOTS-CLÉS YTG À INTÉGRER OBLIGATOIREMENT
+{ytg_analysis_report}
+
+## MOTS-CLÉS YTG À INTÉGRER
 {ytg_keywords}
 
-RÈGLE CRITIQUE : Intègre TOUS ces mots-clés, chacun plusieurs fois (autant que nécessaire par rapport aux concurrents), répartis naturellement. Fluidité > bourrage.
+⚠️⚠️⚠️ RÈGLE CRITIQUE D'OPTIMISATION SÉMANTIQUE ⚠️⚠️⚠️
+Tu as ci-dessus l'ANALYSE RÉELLE de l'utilisation des mots-clés par les concurrents bien classés.
+Tu DOIS :
+1. Respecter les CIBLES d'occurrences indiquées dans le tableau (colonne "Cible")
+2. Placer les mots-clés marqués "En titre" dans tes H2/H3
+3. Placer les mots-clés marqués "En intro" dans ton introduction et premier paragraphe
+4. Les mots-clés à PRIORITÉ HAUTE doivent apparaître au moins autant que chez les concurrents
+5. Répartir naturellement les mots-clés dans tout le contenu (pas de bourrage)
+
+L'objectif est de produire un contenu dont l'optimisation sémantique est COMPARABLE ou SUPÉRIEURE aux pages concurrentes analysées.
 
 ## QUESTIONS PAA
 {paa_str}
@@ -773,19 +987,33 @@ if generate_button:
         # Étape 2 : Fetch contenus
         progress.empty()
         with progress:
-            st.markdown(f'<div class="step-indicator"><div class="step-dot"></div><span class="step-text">📄 Analyse de {len(sources)} sources...</span></div>', unsafe_allow_html=True)
+            st.markdown(f'<div class="step-indicator"><div class="step-dot"></div><span class="step-text">📄 Récupération de {len(sources)} sources...</span></div>', unsafe_allow_html=True)
             bar = st.progress(0)
             contents = []
             for i, src in enumerate(sources):
                 contents.append(fetch_content_jina(src['url']))
                 bar.progress((i + 1) / len(sources))
-        
+
+        # Étape 2.5 : Analyse sémantique YTG des concurrents
+        progress.empty()
+        with progress:
+            st.markdown('<div class="step-indicator"><div class="step-dot"></div><span class="step-text">📊 Analyse sémantique YTG des concurrents...</span></div>', unsafe_allow_html=True)
+            try:
+                ytg_analysis = analyze_competitors_ytg(sources, contents, ytg_keywords)
+                ytg_report_for_prompt = format_ytg_report_for_prompt(ytg_analysis)
+                ytg_report_for_display = format_ytg_report_for_display(ytg_analysis)
+            except Exception as e:
+                st.warning(f"Analyse YTG partielle : {e}")
+                ytg_analysis = {}
+                ytg_report_for_prompt = ""
+                ytg_report_for_display = "Erreur lors de l'analyse"
+
         # Étape 3 : Agent 1
         progress.empty()
         with progress:
-            st.markdown('<div class="step-indicator"><div class="step-dot"></div><span class="step-text">✍️ Agent 1 : Génération contenu SEO (Opus 4.5, temp=0.7)...</span></div>', unsafe_allow_html=True)
+            st.markdown('<div class="step-indicator"><div class="step-dot"></div><span class="step-text">✍️ Agent 1 : Génération contenu SEO optimisé (Opus 4.5, temp=0.7)...</span></div>', unsafe_allow_html=True)
             try:
-                content = agent1_generate_content(client, keyword, ytg_keywords, persona, sources, contents, paa, blocklist, mots_interdits)
+                content = agent1_generate_content(client, keyword, ytg_keywords, persona, sources, contents, paa, blocklist, mots_interdits, ytg_report_for_prompt)
             except Exception as e:
                 st.error(f"Erreur Agent 1 : {e}")
                 st.stop()
@@ -805,17 +1033,27 @@ if generate_button:
         # Résultat
         progress.empty()
         st.markdown('<div style="background:#d4edda;border-radius:12px;padding:1rem;margin-bottom:1rem;border-left:4px solid #28a745;"><span style="font-weight:600;color:#155724;">✅ Page générée avec succès !</span></div>', unsafe_allow_html=True)
-        
-        tab1, tab2, tab3 = st.tabs(["📄 HTML Final", "📊 Contenu structuré (Agent 1)", "🔍 Sources"])
-        
+
+        tab1, tab2, tab3, tab4 = st.tabs(["📄 HTML Final", "📊 Analyse sémantique YTG", "🔧 Contenu structuré (Agent 1)", "🔍 Sources"])
+
         with tab1:
             st.download_button("⬇️ Télécharger HTML", final_html, f"ootravaux-{keyword.replace(' ', '-')}.html", "text/html")
             st.code(final_html, language="html")
-        
+
         with tab2:
-            st.json(content)
-        
+            st.markdown("## 📊 Rapport d'analyse sémantique des concurrents")
+            st.markdown("Cette analyse montre comment les pages concurrentes utilisent vos mots-clés YTG. L'Agent 1 a reçu ces données pour calibrer l'optimisation du contenu généré.")
+            st.markdown("---")
+            st.markdown(ytg_report_for_display)
+
+            # Afficher aussi les données brutes en expander
+            with st.expander("🔬 Données brutes de l'analyse"):
+                st.json(ytg_analysis)
+
         with tab3:
+            st.json(content)
+
+        with tab4:
             for i, src in enumerate(sources, 1):
                 st.markdown(f"{i}. [{src['title']}]({src['url']})")
             if paa:
