@@ -258,64 +258,152 @@ TEMOIGNAGES_DEFAULT = []
 
 
 def parse_temoignages_input(temoignages_str: str) -> List[Dict]:
-    """Parse les témoignages au format Prénom|texte|date|étoiles;..."""
+    """Parse les témoignages - supporte plusieurs formats :
+    - Format pipe : Prénom|texte|date|étoiles;...
+    - Format naturel : texte. Prénom (date sur Ootravaux);...
+    """
     if not temoignages_str.strip():
         return TEMOIGNAGES_DEFAULT
-    
+
     temoignages = []
     entries = temoignages_str.strip().split(";")
-    
+
     for entry in entries:
-        parts = entry.strip().split("|")
-        if len(parts) >= 4:
-            etoiles_num = parts[3].strip()
-            if etoiles_num == "5":
-                etoiles = "★★★★★"
-            elif etoiles_num == "4":
-                etoiles = "★★★★☆"
-            else:
-                etoiles = "★★★★★"
-            
-            temoignages.append({
-                "prenom": parts[0].strip(),
-                "texte": parts[1].strip(),
-                "date": parts[2].strip(),
-                "etoiles": etoiles
-            })
-    
+        entry = entry.strip()
+        if not entry:
+            continue
+
+        # Format 1 : Prénom|texte|date|étoiles
+        if "|" in entry:
+            parts = entry.split("|")
+            if len(parts) >= 4:
+                etoiles_num = parts[3].strip()
+                etoiles = "★★★★★" if etoiles_num == "5" else ("★★★★☆" if etoiles_num == "4" else "★★★★★")
+                temoignages.append({
+                    "prenom": parts[0].strip(),
+                    "texte": parts[1].strip(),
+                    "date": parts[2].strip(),
+                    "etoiles": etoiles
+                })
+        # Format 2 : texte. Prénom (date sur Ootravaux) ou texte. Prénom (date)
+        else:
+            # Chercher le pattern : texte Prénom (date...)
+            match = re.search(r'^(.+?)\.\s*([A-ZÀ-Ú][a-zà-ú]+)\s*\(([^)]+)\)', entry)
+            if match:
+                texte = match.group(1).strip()
+                prenom = match.group(2).strip()
+                date_part = match.group(3).strip()
+                # Nettoyer la date (enlever "sur Ootravaux" si présent)
+                date_clean = re.sub(r'\s*sur\s+Ootravaux\s*', '', date_part).strip()
+                temoignages.append({
+                    "prenom": prenom,
+                    "texte": texte + ".",
+                    "date": date_clean,
+                    "etoiles": "★★★★★"
+                })
+
     return temoignages
 
 ARTICLES_CARROUSEL_DEFAULT = []
 
 
 def parse_carrousel_input(carrousel_str: str) -> List[Dict]:
-    """Parse le carrousel au format URL|titre|date|categorie|url_image;..."""
+    """Parse le carrousel - supporte plusieurs formats :
+    - Format pipe : URL|titre|date|categorie|url_image;...
+    - Format naturel avec virgules : date\\ntitre, URL, image : URL_image
+    """
     if not carrousel_str.strip():
         return ARTICLES_CARROUSEL_DEFAULT
-    
+
     articles = []
-    entries = carrousel_str.strip().split(";")
-    
-    for entry in entries:
-        parts = entry.strip().split("|")
-        if len(parts) >= 5:
-            articles.append({
-                "url": parts[0].strip(),
-                "titre": parts[1].strip(),
-                "date": parts[2].strip(),
-                "categorie": parts[3].strip(),
-                "image": parts[4].strip()
-            })
-        elif len(parts) == 4:
-            # Fallback sans image
-            articles.append({
-                "url": parts[0].strip(),
-                "titre": parts[1].strip(),
-                "date": parts[2].strip(),
-                "categorie": parts[3].strip(),
-                "image": ""
-            })
-    
+
+    # Format 1 : avec séparateur pipe (|)
+    if "|" in carrousel_str:
+        entries = carrousel_str.strip().split(";")
+        for entry in entries:
+            parts = entry.strip().split("|")
+            if len(parts) >= 5:
+                articles.append({
+                    "url": parts[0].strip(),
+                    "titre": parts[1].strip(),
+                    "date": parts[2].strip(),
+                    "categorie": parts[3].strip(),
+                    "image": parts[4].strip()
+                })
+            elif len(parts) == 4:
+                articles.append({
+                    "url": parts[0].strip(),
+                    "titre": parts[1].strip(),
+                    "date": parts[2].strip(),
+                    "categorie": parts[3].strip(),
+                    "image": ""
+                })
+    # Format 2 : format naturel avec virgules et "image :"
+    else:
+        # Séparer par point-virgule ou par double retour à la ligne
+        if ";" in carrousel_str:
+            entries = carrousel_str.strip().split(";")
+        else:
+            # Essayer de détecter les blocs (date + infos)
+            lines = carrousel_str.strip().split("\n")
+            entries = []
+            current_entry = []
+            for line in lines:
+                line = line.strip()
+                if not line:
+                    continue
+                # Si la ligne ressemble à une date (commence par un chiffre et contient mois)
+                if re.match(r'^\d{1,2}\s+\w+\s+\d{4}', line) and current_entry:
+                    entries.append("\n".join(current_entry))
+                    current_entry = [line]
+                else:
+                    current_entry.append(line)
+            if current_entry:
+                entries.append("\n".join(current_entry))
+
+        for entry in entries:
+            entry = entry.strip()
+            if not entry:
+                continue
+
+            # Chercher : date, titre, URL, image : URL_image
+            # Pattern flexible
+            url_match = re.search(r'https?://[^\s,]+\.html', entry)
+            image_match = re.search(r'image\s*:\s*(https?://[^\s,]+)', entry, re.IGNORECASE)
+
+            if url_match:
+                url = url_match.group(0)
+                # Extraire la date (format: 06 janvier 2026)
+                date_match = re.search(r'(\d{1,2}\s+\w+\s+\d{4})', entry)
+                date = date_match.group(1) if date_match else ""
+
+                # Extraire le titre (texte avant la virgule qui précède l'URL)
+                # ou le texte au début de la ligne après la date
+                titre = ""
+                lines = entry.split("\n")
+                for line in lines:
+                    if "http" in line:
+                        # Le titre est souvent avant la première virgule
+                        parts = line.split(",")
+                        if parts:
+                            titre = parts[0].strip()
+                            break
+
+                # Extraire l'image
+                image = image_match.group(1) if image_match else ""
+
+                # Catégorie = titre simplifié ou vide
+                categorie = titre.split()[0] if titre else ""
+
+                if url and titre:
+                    articles.append({
+                        "url": url,
+                        "titre": titre,
+                        "date": date,
+                        "categorie": categorie,
+                        "image": image
+                    })
+
     return articles
 
 
