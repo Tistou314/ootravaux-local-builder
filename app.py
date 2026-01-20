@@ -498,8 +498,8 @@ def generate_carrousel_html(articles: List[Dict]) -> str:
                                                 <img src="{a['image']}" alt="{a['titre']}" class="articles-vignette-img">
                                             </a>
                                         </div>
-                                        <div class="articles-vignette-meta">{a['categorie']}</div>
-                                        <div class="articles-vignette-date">{a['date']}</div>
+                                        <div class="articles-vignette-meta">{a['date']}</div>
+                                        <div class="articles-vignette-date">{a['categorie']}</div>
                                         <div class="articles-vignette-title">
                                             <a class="carousel-link" href="{a['url']}" target="_blank">{a['titre']}</a>
                                         </div>
