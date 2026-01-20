@@ -860,17 +860,20 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # Configuration API
-with st.expander("⚙️ Configuration API", expanded=not st.session_state.get('api_configured', False)):
-    col1, col2 = st.columns(2)
-    with col1:
-        anthropic_key = st.text_input("Clé API Anthropic", type="password", value=st.session_state.get('anthropic_key', ''))
-    with col2:
-        serper_key = st.text_input("Clé API Serper", type="password", value=st.session_state.get('serper_key', ''))
-    
-    if anthropic_key and serper_key:
-        st.session_state['anthropic_key'] = anthropic_key
-        st.session_state['serper_key'] = serper_key
-        st.session_state['api_configured'] = True
+if st.session_state.get('api_configured', False):
+    st.markdown('<div style="background:#d4edda;border-radius:8px;padding:0.75rem 1rem;margin-bottom:1rem;border-left:4px solid #28a745;"><span style="color:#155724;">✅ Clés API configurées (chargées depuis secrets.toml)</span></div>', unsafe_allow_html=True)
+else:
+    with st.expander("⚙️ Configuration API", expanded=True):
+        col1, col2 = st.columns(2)
+        with col1:
+            anthropic_key = st.text_input("Clé API Anthropic", type="password", value=st.session_state.get('anthropic_key', ''))
+        with col2:
+            serper_key = st.text_input("Clé API Serper", type="password", value=st.session_state.get('serper_key', ''))
+
+        if anthropic_key and serper_key:
+            st.session_state['anthropic_key'] = anthropic_key
+            st.session_state['serper_key'] = serper_key
+            st.session_state['api_configured'] = True
 
 # Formulaire principal
 col_left, col_right = st.columns([2, 1])
