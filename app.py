@@ -33,7 +33,8 @@ TEMPLATE_HTML = '''<!DOCTYPE html>
     <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no" />
     <meta http-equiv="x-ua-compatible" content="ie=edge" />
     <title>{{PAGE_TITLE}}</title>
-    
+    {{JSON_LD_SCHEMAS}}
+
     <style>
         *, ::after, ::before { box-sizing: border-box; }
         html { font-family: sans-serif; line-height: 1.15; -webkit-text-size-adjust: 100%; -webkit-tap-highlight-color: transparent; }
@@ -508,6 +509,184 @@ def generate_carrousel_html(articles: List[Dict]) -> str:
     return html
 
 
+def generate_json_ld_schemas(content: dict, breadcrumb_data: dict, temoignages: List[Dict], faq_items: List[Dict], page_url: str = "") -> str:
+    """Génère tous les schémas JSON-LD pour la page"""
+
+    schemas = []
+
+    # 1. Organization Schema
+    organization_schema = {
+        "@context": "https://schema.org",
+        "@type": "Organization",
+        "@id": "https://www.ootravaux.fr/#organization",
+        "name": "Ootravaux",
+        "url": "https://www.ootravaux.fr/",
+        "logo": {
+            "@type": "ImageObject",
+            "url": "https://www.ootravaux.fr/themes/custom/ootravaux/images/logo-endosse-header.svg",
+            "width": 145,
+            "height": 40
+        },
+        "contactPoint": {
+            "@type": "ContactPoint",
+            "telephone": "+33-1-76-40-30-94",
+            "contactType": "customer service",
+            "availableLanguage": "French",
+            "hoursAvailable": {
+                "@type": "OpeningHoursSpecification",
+                "dayOfWeek": [
+                    "http://schema.org/Monday",
+                    "http://schema.org/Tuesday",
+                    "http://schema.org/Wednesday",
+                    "http://schema.org/Thursday",
+                    "http://schema.org/Friday"
+                ],
+                "opens": "09:00",
+                "closes": "17:30"
+            }
+        },
+        "sameAs": [
+            "https://www.facebook.com/ootravaux",
+            "https://www.youtube.com/channel/UC28XIun3wmkfBt9KclzjV6g",
+            "https://www.instagram.com/ootravaux/"
+        ]
+    }
+    schemas.append(organization_schema)
+
+    # 2. BreadcrumbList Schema
+    breadcrumb_schema = {
+        "@context": "https://schema.org",
+        "@type": "BreadcrumbList",
+        "itemListElement": [
+            {
+                "@type": "ListItem",
+                "position": 1,
+                "name": "Ootravaux",
+                "item": "https://www.ootravaux.fr/"
+            },
+            {
+                "@type": "ListItem",
+                "position": 2,
+                "name": breadcrumb_data.get('parent', 'Trouver votre artisan'),
+                "item": f"https://www.ootravaux.fr{breadcrumb_data.get('parent_url', '/prestation')}"
+            },
+            {
+                "@type": "ListItem",
+                "position": 3,
+                "name": breadcrumb_data.get('cat', ''),
+                "item": f"https://www.ootravaux.fr{breadcrumb_data.get('cat_url', '')}"
+            },
+            {
+                "@type": "ListItem",
+                "position": 4,
+                "name": content.get('h1', '')
+            }
+        ]
+    }
+    schemas.append(breadcrumb_schema)
+
+    # 3. FAQPage Schema (si FAQ présente)
+    if faq_items:
+        faq_schema = {
+            "@context": "https://schema.org",
+            "@type": "FAQPage",
+            "mainEntity": []
+        }
+        for item in faq_items:
+            if isinstance(item, dict) and item.get('question') and item.get('answer'):
+                faq_schema["mainEntity"].append({
+                    "@type": "Question",
+                    "name": item.get('question', ''),
+                    "acceptedAnswer": {
+                        "@type": "Answer",
+                        "text": item.get('answer', '')
+                    }
+                })
+        if faq_schema["mainEntity"]:
+            schemas.append(faq_schema)
+
+    # 4. AggregateRating Schema (si témoignages présents)
+    if temoignages:
+        # Calculer la note moyenne
+        ratings = []
+        for t in temoignages:
+            etoiles = t.get('etoiles', '★★★★★')
+            if '★★★★★' in etoiles and '☆' not in etoiles:
+                ratings.append(5)
+            elif '★★★★☆' in etoiles:
+                ratings.append(4)
+            elif '★★★☆☆' in etoiles:
+                ratings.append(3)
+            else:
+                ratings.append(5)  # Par défaut
+
+        avg_rating = sum(ratings) / len(ratings) if ratings else 5
+
+        aggregate_schema = {
+            "@context": "https://schema.org",
+            "@type": "LocalBusiness",
+            "name": "Ootravaux",
+            "image": "https://www.ootravaux.fr/themes/custom/ootravaux/images/logo-endosse-header.svg",
+            "aggregateRating": {
+                "@type": "AggregateRating",
+                "ratingValue": round(avg_rating, 1),
+                "reviewCount": len(temoignages),
+                "bestRating": 5,
+                "worstRating": 1
+            },
+            "review": []
+        }
+
+        for t in temoignages:
+            etoiles = t.get('etoiles', '★★★★★')
+            if '☆' not in etoiles:
+                rating_val = 5
+            elif etoiles.count('★') == 4:
+                rating_val = 4
+            else:
+                rating_val = 5
+
+            aggregate_schema["review"].append({
+                "@type": "Review",
+                "author": {
+                    "@type": "Person",
+                    "name": t.get('prenom', 'Client')
+                },
+                "datePublished": t.get('date', ''),
+                "reviewBody": t.get('texte', ''),
+                "reviewRating": {
+                    "@type": "Rating",
+                    "ratingValue": rating_val,
+                    "bestRating": 5
+                }
+            })
+
+        schemas.append(aggregate_schema)
+
+    # 5. WebPage Schema
+    webpage_schema = {
+        "@context": "https://schema.org",
+        "@type": "WebPage",
+        "name": content.get('h1', ''),
+        "description": content.get('intro', ''),
+        "publisher": {
+            "@id": "https://www.ootravaux.fr/#organization"
+        },
+        "inLanguage": "fr-FR"
+    }
+    schemas.append(webpage_schema)
+
+    # Générer le HTML avec tous les schemas
+    html_output = ""
+    for schema in schemas:
+        html_output += f'''
+    <script type="application/ld+json">
+{json.dumps(schema, ensure_ascii=False, indent=2)}
+    </script>'''
+
+    return html_output
+
+
 def analyze_ytg_in_content(content: str, ytg_keywords: List[str]) -> Dict:
     """Analyse la présence et fréquence des mots-clés YTG dans un contenu"""
     content_lower = content.lower()
@@ -913,9 +1092,18 @@ def agent2_assemble_page(
     # Image par défaut si non fournie
     if not url_image:
         url_image = "https://www.ootravaux.fr/sites/ootravaux/storage/files/2025-09/facade-paris.jpg"
-    
+
+    # Générer les schémas JSON-LD
+    json_ld_schemas = generate_json_ld_schemas(
+        content=content,
+        breadcrumb_data=breadcrumb_data,
+        temoignages=temoignages_list,
+        faq_items=content.get("faq", [])
+    )
+
     # Remplacer les placeholders dans le template
     final_html = TEMPLATE_HTML
+    final_html = final_html.replace("{{JSON_LD_SCHEMAS}}", json_ld_schemas)
     final_html = final_html.replace("{{PAGE_TITLE}}", content.get("h1", keyword.title()))
     final_html = final_html.replace("{{BREADCRUMB}}", breadcrumb_html)
     final_html = final_html.replace("{{IMAGE_URL}}", url_image)
