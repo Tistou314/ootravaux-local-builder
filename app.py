@@ -1016,7 +1016,7 @@ if generate_button:
         progress.empty()
         st.markdown('<div style="background:#d4edda;border-radius:12px;padding:1rem;margin-bottom:1rem;border-left:4px solid #28a745;"><span style="font-weight:600;color:#155724;">✅ Page générée avec succès !</span></div>', unsafe_allow_html=True)
 
-        tab1, tab2, tab3, tab4 = st.tabs(["📄 HTML Final", "📊 Analyse sémantique YTG", "🔧 Contenu structuré (Agent 1)", "🔍 Sources"])
+        tab1, tab2, tab3, tab4, tab5 = st.tabs(["📄 HTML Final", "📊 Analyse sémantique YTG", "🔧 Contenu structuré (Agent 1)", "🔍 Sources", "🐛 Debug"])
 
         with tab1:
             st.download_button("⬇️ Télécharger HTML", final_html, f"ootravaux-{keyword.replace(' ', '-')}.html", "text/html")
@@ -1042,6 +1042,20 @@ if generate_button:
                 st.markdown("**Questions PAA :**")
                 for q in paa:
                     st.markdown(f"- {q}")
+
+        with tab5:
+            st.markdown("### Debug : Témoignages")
+            st.markdown("**Input brut :**")
+            st.code(temoignages_input if temoignages_input else "(vide)")
+            st.markdown("**Après parsing :**")
+            st.json(temoignages_list)
+
+            st.markdown("---")
+            st.markdown("### Debug : Carrousel")
+            st.markdown("**Input brut :**")
+            st.code(carrousel_input if carrousel_input else "(vide)")
+            st.markdown("**Après parsing :**")
+            st.json(carrousel_articles)
 
 # Footer
 st.markdown('<div style="text-align:center;margin-top:3rem;color:#94a3b8;font-size:0.85rem;">Propulsé par Claude Opus 4.5 & Serper • Made for Ootravaux 🏠</div>', unsafe_allow_html=True)
