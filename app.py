@@ -844,24 +844,30 @@ def agent2_assemble_page(
     final_html = final_html.replace("{{FAQ}}", faq_html)
     
     # Nettoyage final avec Agent 2 pour vérifier/corriger le HTML
-    system_prompt = """Tu es un expert HTML. Vérifie et corrige ce HTML si nécessaire :
-- Toutes les balises doivent être correctement fermées
-- Pas de balises orphelines
-- HTML valide et bien formé
+    system_prompt = """Tu es un expert HTML. Ta SEULE mission est de vérifier et corriger les balises HTML si nécessaire.
 
-Si le HTML est correct, retourne-le tel quel.
-Si des corrections sont nécessaires, fais-les et retourne le HTML corrigé.
+RÈGLES STRICTES :
+1. NE JAMAIS supprimer de contenu, sections, ou éléments
+2. NE JAMAIS modifier le texte, les URLs, ou les attributs
+3. UNIQUEMENT corriger les balises mal fermées ou orphelines
+4. PRÉSERVER INTÉGRALEMENT toutes les sections : témoignages (avis-card), carrousel (articles-vignette), FAQ, etc.
 
-IMPORTANT : Retourne UNIQUEMENT le HTML, rien d'autre."""
+Si le HTML est correct, retourne-le EXACTEMENT tel quel, sans aucune modification.
+Si des balises sont mal fermées, corrige-les et retourne le HTML.
+
+⚠️ INTERDIT : Supprimer des sections, simplifier le code, retirer des éléments "vides"
+⚠️ OBLIGATOIRE : Conserver 100% du contenu original
+
+Retourne UNIQUEMENT le HTML complet, rien d'autre."""
 
     response = client.messages.create(
         model="claude-opus-4-5-20251101",
         max_tokens=16000,
-        temperature=0.2,
-        messages=[{"role": "user", "content": f"Vérifie et retourne ce HTML :\n\n{final_html}"}],
+        temperature=0.0,  # Température à 0 pour éviter toute créativité
+        messages=[{"role": "user", "content": f"Vérifie les balises et retourne ce HTML INTÉGRALEMENT :\n\n{final_html}"}],
         system=system_prompt
     )
-    
+
     return response.content[0].text.strip()
 
 
