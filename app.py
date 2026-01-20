@@ -843,32 +843,8 @@ def agent2_assemble_page(
     final_html = final_html.replace("{{POURQUOI_OOTRAVAUX}}", content.get("pourquoi_ootravaux", ""))
     final_html = final_html.replace("{{FAQ}}", faq_html)
     
-    # Nettoyage final avec Agent 2 pour vérifier/corriger le HTML
-    system_prompt = """Tu es un expert HTML. Ta SEULE mission est de vérifier et corriger les balises HTML si nécessaire.
-
-RÈGLES STRICTES :
-1. NE JAMAIS supprimer de contenu, sections, ou éléments
-2. NE JAMAIS modifier le texte, les URLs, ou les attributs
-3. UNIQUEMENT corriger les balises mal fermées ou orphelines
-4. PRÉSERVER INTÉGRALEMENT toutes les sections : témoignages (avis-card), carrousel (articles-vignette), FAQ, etc.
-
-Si le HTML est correct, retourne-le EXACTEMENT tel quel, sans aucune modification.
-Si des balises sont mal fermées, corrige-les et retourne le HTML.
-
-⚠️ INTERDIT : Supprimer des sections, simplifier le code, retirer des éléments "vides"
-⚠️ OBLIGATOIRE : Conserver 100% du contenu original
-
-Retourne UNIQUEMENT le HTML complet, rien d'autre."""
-
-    response = client.messages.create(
-        model="claude-opus-4-5-20251101",
-        max_tokens=16000,
-        temperature=0.0,  # Température à 0 pour éviter toute créativité
-        messages=[{"role": "user", "content": f"Vérifie les balises et retourne ce HTML INTÉGRALEMENT :\n\n{final_html}"}],
-        system=system_prompt
-    )
-
-    return response.content[0].text.strip()
+    # Retourner directement le HTML assemblé (pas besoin de vérification IA)
+    return final_html
 
 
 # ============================================
@@ -1024,10 +1000,10 @@ if generate_button:
                 st.error(f"Erreur Agent 1 : {e}")
                 st.stop()
         
-        # Étape 4 : Agent 2
+        # Étape 4 : Assemblage final
         progress.empty()
         with progress:
-            st.markdown('<div class="step-indicator"><div class="step-dot"></div><span class="step-text">🎨 Agent 2 : Assemblage template (Opus 4.5, temp=0.2)...</span></div>', unsafe_allow_html=True)
+            st.markdown('<div class="step-indicator"><div class="step-dot"></div><span class="step-text">🎨 Assemblage du template HTML...</span></div>', unsafe_allow_html=True)
             try:
                 carrousel_articles = parse_carrousel_input(carrousel_input)
                 temoignages_list = parse_temoignages_input(temoignages_input)
