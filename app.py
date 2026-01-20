@@ -383,8 +383,8 @@ def parse_carrousel_input(carrousel_str: str) -> List[Dict]:
                 slug_match = re.search(r'/([^/]+)\.html$', url)
                 if slug_match:
                     slug = slug_match.group(1)
-                    # Convertir le slug en titre lisible
-                    titre = slug.replace('-', ' ').replace('_', ' ').title()
+                    # Convertir le slug en titre lisible (majuscule au premier mot seulement)
+                    titre = slug.replace('-', ' ').replace('_', ' ').capitalize()
                 else:
                     titre = ""
 
@@ -393,8 +393,8 @@ def parse_carrousel_input(carrousel_str: str) -> List[Dict]:
                 cat_match = re.search(r'ootravaux\.fr/([^/]+)', url)
                 if cat_match:
                     cat_slug = cat_match.group(1)
-                    # Convertir en format lisible
-                    categorie = cat_slug.replace('-', ' ').replace('_', ' ').title()
+                    # Convertir en format lisible (majuscule au premier mot seulement)
+                    categorie = cat_slug.replace('-', ' ').replace('_', ' ').capitalize()
                 else:
                     categorie = ""
 
