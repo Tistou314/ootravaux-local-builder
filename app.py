@@ -627,6 +627,14 @@ def generate_json_ld_schemas(content: dict, breadcrumb_data: dict, temoignages: 
             "@type": "LocalBusiness",
             "name": "Ootravaux",
             "image": "https://www.ootravaux.fr/themes/custom/ootravaux/images/logo-endosse-header.svg",
+            "address": {
+                "@type": "PostalAddress",
+                "streetAddress": "204 Rond-Point du Pont de Sèvres",
+                "addressLocality": "Boulogne-Billancourt",
+                "postalCode": "92100",
+                "addressCountry": "FR"
+            },
+            "telephone": "+33-1-76-40-30-94",
             "aggregateRating": {
                 "@type": "AggregateRating",
                 "ratingValue": round(avg_rating, 1),
